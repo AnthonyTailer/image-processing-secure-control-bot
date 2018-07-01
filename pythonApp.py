@@ -41,6 +41,10 @@ MessageLoop(bot, handle).run_as_thread()
 bot.sendMessage(CHAT_ID_API, "Sistema de segurança inicializado!!")
 print("Sistema de segurança inicializado!!..")
 
+# adiciona classificador de reconhecimento de face
+face_cascade = cv2.CascadeClassifier('cascade_detections/haarcascade_frontalface_default.xml')
+eye_cascade = cv2.CascadeClassifier('cascade_detections/haarcascade_eye_tree_eyeglasses.xml')
+
 while(1):
 	arduino_data = arduino.readline()
 
@@ -51,6 +55,7 @@ while(1):
 		fourcc =  cv2.VideoWriter_fourcc(*'XVID') #this line for openCV3
 		out = cv2.VideoWriter('output.avi',fourcc, 20.0, (640,480))
 		i = 0
+		face_eyes_detect = False
 		while (arduino_data):
 			#Captura frame-por-frame
 			ret, frame = cap.read() 
@@ -63,17 +68,35 @@ while(1):
 				# opcoes de cor do frame que ira incluir a camera
 				gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 				
+				equalize_gray_image = cv2.equalizeHist(gray)
+
+				detect_face = face_cascade.detectMultiScale(equalize_gray_image)
+
+				for (x, y, w, h) in detect_face:
+					cv2.rectangle(equalize_gray_image,(x,y),(x+w,y+h),(255,0,0),2)
+        			roi_gray = equalize_gray_image[y:y+h, x:x+w]
+        			roi_color = frame[y:y+h, x:x+w]
+					
+					eyes = eye_cascade.detectMultiScale(roi_gray)
+        			if (len(eyes)):
+						for (ex,ey,ew,eh) in eyes:
+            				cv2.rectangle(roi_color,(ex,ey),(ex+ew,ey+eh),(0,255,0),2)
+						if (face_eyes_detect == False):
+							face_eyes_detect = True
+							cv2.imwrite('output.jpg', equalize_gray_image)
 				# Mostra a janela com a camera em escala de cinza
-				cv2.imshow('frame',gray)
+				cv2.imshow('frame',equalize_gray_image)
+
+
 			
-				if cv2.waitKey(1) & 0xFF == ord('q'): # apertando 'q' no teclado a camera sera fechada
-					break
+				# if cv2.waitKey(1) & 0xFF == ord('q'): # apertando 'q' no teclado a camera sera fechada
+				# 	break
 				if i > 300: #grava cerca de 25 segundos da tela para enviar ao BOT
 					break
 			else:
 				break
 			i += 1
-		f = open('output.avi', 'rb')
+		f = open('output.jpg', 'rb')
 		bot.sendDocument(CHAT_ID_API, f)				
 	time.sleep(1)
 
